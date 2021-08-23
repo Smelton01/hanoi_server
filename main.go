@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,7 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const route = "/{name}/{date}/{time}"
+const route = "/api/{name}/{date}/{time}"
 
 type records struct {
 	client 	*mongo.Client
@@ -27,7 +29,10 @@ type Entry struct {
 	ID primitive.ObjectID `bson:"_id"`
 	UserTime int	`bson:"time"`
 	UserDate time.Time	`bson:"date"`
+	UserName string		`bson:"name"`
 }
+
+type Entries []Entry
 
 func main() {
 	var port = flag.Int("p", 8080, "Port to run the server")
@@ -35,7 +40,7 @@ func main() {
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/", GetHandlerFunc).Methods("GET")
+	r.HandleFunc("/api", GetHandlerFunc).Methods("GET")
 	r.HandleFunc(route, PostHandlerFunc).Methods("POST")
 
 	fmt.Println("Listening on port: ", *port)
@@ -55,10 +60,6 @@ func dbConn(ctx context.Context) (*mongo.Client, *mongo.Collection) {
 }
 
 func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
-	// vars := mux.Vars(r)
-	// userName := vars["name"]
-	// userDate := vars["date"]
-	// userTime := vars["time"]
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -78,7 +79,7 @@ func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
 	defer cur.Close(ctx)
 
 	
-	var results []*Entry
+	var results = Entries{}
 
 	for cur.Next(context.Background()){
 		var res Entry
@@ -88,9 +89,15 @@ func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
 			log.Fatal("Decode error: ",err)
 		}
 		
-		results = append(results, &res)
+		results = append(results, res)
 	}
-	fmt.Fprintf(w, "<h1>HELLO WORLD</h1>\n%v", results)
+
+	if err != nil {
+		log.Fatal("Json Error")
+	}
+
+	json.NewEncoder(w).Encode(results)
+	w.WriteHeader(http.StatusOK)
 }
 
 func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +105,10 @@ func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	userName := vars["name"]
 	userDate := vars["date"]
 	userTime := vars["time"]
+	intTime, err := strconv.Atoi(userTime)
+	if err != nil {
+		log.Fatal("conversion error", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -110,14 +121,19 @@ func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	res, err := recordCollection.InsertOne(ctx, bson.D{
+	_, err = recordCollection.InsertOne(ctx, bson.D{
 		{"name", userName},
-    	{"time", userTime},
-		{"date", time.Now()},
+    	{"time", intTime},
+		{"date", userDate},
 		})
 	if err != nil {
 		log.Fatal("Insert error: ", err)
 	}
-	fmt.Println(res)
-	fmt.Fprintf(w, "<h1>HELLO WORLD</h1>\n%v %v %v", userName, userDate, userTime)
+
+	var resp = struct{
+		status string
+	}{status: "OK"}
+	json.NewEncoder(w).Encode(resp)
+	w.WriteHeader(http.StatusOK)
+
 }
