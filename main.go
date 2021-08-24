@@ -18,12 +18,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-const route = "/api/{name}/{date}/{time}"
-
-type records struct {
-	client 	*mongo.Client
-	ctx 	context.Context
-}
+const route = "/api/{name}/{time}"
 
 type Entry struct {
 	ID primitive.ObjectID `bson:"_id"`
@@ -53,8 +48,7 @@ func dbConn(ctx context.Context) (*mongo.Client, *mongo.Collection) {
 		log.Fatal("Database connection error")
 	}
 
-	recordDatabase := client.Database("Record")
-	recordCollection := recordDatabase.Collection("Record")
+	recordCollection := client.Database("Record").Collection("Record")
 
 	return client, recordCollection
 }
@@ -103,9 +97,9 @@ func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
 func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	userName := vars["name"]
-	userDate := vars["date"]
 	userTime := vars["time"]
 	intTime, err := strconv.Atoi(userTime)
+	
 	if err != nil {
 		log.Fatal("conversion error", err)
 	}
@@ -124,7 +118,7 @@ func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	_, err = recordCollection.InsertOne(ctx, bson.D{
 		{"name", userName},
     	{"time", intTime},
-		{"date", userDate},
+		{"date", time.Now()},
 		})
 	if err != nil {
 		log.Fatal("Insert error: ", err)
