@@ -1,13 +1,25 @@
-FROM golang:1.16-alpine AS builder
-RUN mkdir /build 
-ADD go.mod go.sum main.go /build/
-WORKDIR /build
-RUN go build -o hanoi
+FROM golang:1.16-alpine
 
-FROM alpine
-RUN adduser -S -D -H -h /app appuser
-USER appuser
-COPY --from=builder /build/hanoi /app/
-COPY views/ /app/views
+# Set destination for COPY
 WORKDIR /app
-CMD ["./hanoi"] 
+
+# Download Go modules
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+
+# Copy the source code. Note the slash at the end, as explained in
+# https://docs.docker.com/engine/reference/builder/#copy
+COPY *.go ./
+
+# Build
+RUN go build -o /hanoi
+
+# This is for documentation purposes only.
+# To actually open the port, runtime parameters
+# must be supplied to the docker command.
+EXPOSE 8080
+
+
+# Run
+CMD [ "/hanoi" ]
