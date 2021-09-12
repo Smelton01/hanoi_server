@@ -27,8 +27,6 @@ type Entry struct {
 	UserName string		`bson:"name"`
 }
 
-type Entries []Entry
-
 func main() {
 	var port = flag.Int("p", 8080, "Port to run the server")
 	flag.Parse()
@@ -49,17 +47,14 @@ func dbConn(ctx context.Context) (*mongo.Client, *mongo.Collection) {
 	}
 
 	recordCollection := client.Database("Record").Collection("Record")
-
 	return client, recordCollection
 }
 
 func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client, recordCollection := dbConn(ctx)
-
 	defer func() {
 		if err := client.Disconnect(ctx); err != nil {
 			log.Fatal("Error: ",err)
@@ -73,7 +68,7 @@ func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
 	defer cur.Close(ctx)
 
 	
-	var results = Entries{}
+	var results = []Entry{}
 
 	for cur.Next(context.Background()){
 		var res Entry
@@ -85,7 +80,6 @@ func GetHandlerFunc(w http.ResponseWriter, r *http.Request){
 		
 		results = append(results, res)
 	}
-
 	if err != nil {
 		log.Fatal("Json Error")
 	}
@@ -99,6 +93,11 @@ func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 	userName := vars["name"]
 	userTime := vars["time"]
 	intTime, err := strconv.Atoi(userTime)
+
+	if len(userName) == 0 || len(userTime) == 0 {
+		log.Fatal("Null input")
+	}
+
 	
 	if err != nil {
 		log.Fatal("conversion error", err)
@@ -128,6 +127,4 @@ func PostHandlerFunc(w http.ResponseWriter, r *http.Request) {
 		status string
 	}{status: "OK"}
 	json.NewEncoder(w).Encode(resp)
-	w.WriteHeader(http.StatusOK)
-
 }
